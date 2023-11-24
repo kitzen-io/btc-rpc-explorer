@@ -1,0 +1,63 @@
+---
+name: Test, Build and Deploy
+on:
+    push:
+        branches:
+            - master
+jobs:
+    build:
+        name: Build and Push
+        runs-on: self-hosted
+        steps:
+            - uses: actions/checkout@master
+            - name: Setup kubectl
+              id: vars
+              run: |
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  chmod +x kubectl
+                  mkdir -p ~/.local/bin
+                  mv ./kubectl ~/.local/bin/kubectl
+                  kubectl version --client
+                  echo "HARBOR_USER=$(kubectl get secrets -n default harbor --template={{.data.HARBOR_ADMIN}} | base64 -d)" >> $GITHUB_OUTPUT
+                  echo "HARBOR_PASSWORD=$(kubectl get secrets -n default harbor --template={{.data.HARBOR_PASSWORD}} | base64 -d)" >> $GITHUB_OUTPUT
+
+            - name: Kaniko build
+              uses: aevea/action-kaniko@master
+              with:
+                  registry: harbor.kitzen.io
+                  image: kitzen.io/btc-rpc-explorer
+                  username: ${{ steps.vars.outputs.HARBOR_USER }}
+                  password: ${{ steps.vars.outputs.HARBOR_PASSWORD }}
+                  tag: ${{ github.sha }}
+                  tag_with_latest: true
+                  cache: false
+    deploy:
+        name: Deploy
+        runs-on: self-hosted
+        needs: build
+        steps:
+            - name: Setup kubectl
+              id: vars
+              run: |
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  chmod +x kubectl
+                  mkdir -p ~/.local/bin
+                  mv ./kubectl ~/.local/bin/kubectl
+                  kubectl version --client
+                  echo "TOKEN_GITHUB_READ_HELM_REPO=$(kubectl get secrets -n default kitzen-github-helm-repo-token-secret --template={{.data.token}} | base64 -d)" >> $GITHUB_OUTPUT
+            - name: Checkout helm repository
+              uses: actions/checkout@v4
+              with:
+                  repository: kitzen-io/infra
+                  token: ${{ steps.vars.outputs.TOKEN_GITHUB_READ_HELM_REPO }}
+                  path: infra
+            - name: Install YQ
+              uses: dcarbone/install-yq-action@v1.1.1
+            - name: Update image tag
+              run: |
+                  cd ${{ github.workspace }}/infra/helm-charts/btc-rpc-explorer
+                  yq eval -i '.image.tag = env(GITHUB_SHA)' values.yaml
+            - uses: stefanzweifel/git-auto-commit-action@v4
+              with:
+                  repository: ${{ github.workspace }}/infra/
+                  commit_message: Update image tag
