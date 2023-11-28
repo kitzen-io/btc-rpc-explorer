@@ -20,10 +20,12 @@ jobs:
                   kubectl version --client
                   echo "HARBOR_USER=$(kubectl get secrets -n default harbor --template={{.data.HARBOR_ADMIN}} | base64 -d)" >> $GITHUB_OUTPUT
                   echo "HARBOR_PASSWORD=$(kubectl get secrets -n default harbor --template={{.data.HARBOR_PASSWORD}} | base64 -d)" >> $GITHUB_OUTPUT
-
             - name: Kaniko build
               uses: aevea/action-kaniko@master
               with:
+                  path: .
+                  build_file: contrib/docker/Dockerfile
+                  args: "--build-arg MAKEFLAGS=-j ${WORKER_COUNT}"
                   registry: harbor.kitzen.io
                   image: kitzen.io/btc-rpc-explorer
                   username: ${{ steps.vars.outputs.HARBOR_USER }}
