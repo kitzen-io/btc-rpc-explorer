@@ -1,7 +1,7 @@
 FROM node:16 as builder
 WORKDIR /workspace
 COPY . .
-RUN npm install
+RUN npm install --force
 
 FROM node:16-alpine
 WORKDIR /workspace
