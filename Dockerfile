@@ -1,7 +1,7 @@
 FROM node:16 as builder
 WORKDIR /workspace
 COPY . .
-RUN npm install --force
+RUN npm install --unsafe-perm=true --allow-root
 
 FROM node:16-alpine
 WORKDIR /workspace
