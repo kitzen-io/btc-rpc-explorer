@@ -1,11 +1,11 @@
-FROM node:16-alpine
-
+FROM node:16 as builder
 WORKDIR /workspace
-
 COPY . .
+RUN npm install
 
-RUN yarn --frozen-lockfile
-
-CMD ["yarn", "run", "start"]
-
+FROM node:16-alpine
+WORKDIR /workspace
+COPY --from=builder /workspace .
+RUN apk --update add git
+CMD npm start
 EXPOSE 3000
